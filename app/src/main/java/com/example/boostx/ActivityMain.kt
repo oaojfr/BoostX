@@ -9,6 +9,9 @@ import android.media.AudioManager
 import android.media.audiofx.LoudnessEnhancer
 import android.os.Build
 import android.os.Bundle
+import android.content.Intent
+import android.content.Context
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.text.SpannableString
@@ -58,7 +61,13 @@ class MainActivity : AppCompatActivity() {
         setTheme(R.style.Theme_BoostX) // Apply dark theme
         setContentView(R.layout.activity_main)
 
-
+        // Start foreground service to keep BoostX running in background
+        try {
+            val svc = Intent(this, BoostService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(svc) else startService(svc)
+        } catch (e: Exception) {
+            // ignore
+        }
         boostSlider = findViewById(R.id.boostSlider)
         volumeSlider = findViewById(R.id.volumeSlider)
         gradualBoostSwitch = findViewById(R.id.gradualBoostSwitch)
@@ -92,7 +101,24 @@ class MainActivity : AppCompatActivity() {
         volumeTextView = findViewById(R.id.volumeLevel)
         outputDeviceTextView = findViewById(R.id.outputDeviceText)
 
-        boostSlider.addOnChangeListener { _, value, _ -> applyBoost(value.toInt()) }
+        // Restore saved boost level
+        try {
+            val prefs = getSharedPreferences(BoostService.PREFS_NAME, Context.MODE_PRIVATE)
+            val saved = prefs.getInt(BoostService.KEY_BOOST, -1)
+            if (saved >= 0) {
+                boostSlider.value = saved.toFloat()
+                applyBoost(saved)
+            }
+        } catch (e: Exception) {}
+
+        boostSlider.addOnChangeListener { _, value, _ ->
+            val level = value.toInt()
+            applyBoost(level)
+            try {
+                val prefs = getSharedPreferences(BoostService.PREFS_NAME, Context.MODE_PRIVATE)
+                prefs.edit().putInt(BoostService.KEY_BOOST, level).apply()
+            } catch (e: Exception) {}
+        }
         volumeSlider.addOnChangeListener { _, value, _ -> applyVolume(value.toInt(), maxVolume) }
 
         findViewById<TextView>(R.id.infoIcon).setOnClickListener {
